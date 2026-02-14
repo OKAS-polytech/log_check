@@ -29,31 +29,36 @@ class SearchController:
     def estimate_time(self, file_paths, algorithm_key, patterns, bitap_distance):
         return self.estimation_use_case.execute(file_paths, algorithm_key, patterns, self.benchmark_coeffs, bitap_distance)
 
+    def get_all_estimates(self, file_paths, patterns, bitap_distance):
+        estimates = {}
+        for key in ["naive", "bm", "kmp", "ac", "bitap"]:
+            estimates[key] = self.estimation_use_case.get_seconds(file_paths, key, patterns, self.benchmark_coeffs, bitap_distance)
+        return estimates
+
     def run_search(self, file_paths, algorithm_key, patterns, bitap_distance, progress_callback=None):
         algorithm = self._get_algorithm(algorithm_key, patterns, bitap_distance)
         results = {}
 
-        # Calculate total size for progress reporting
         total_size = sum(self.search_use_case.file_repo.get_size(path) for path in file_paths)
         processed_size = 0
 
         for path in file_paths:
             file_size = self.search_use_case.file_repo.get_size(path)
 
-            def make_wrapped_callback(base_offset):
-                return lambda current, total: progress_callback(base_offset + current, total_size) if progress_callback else None
+            def make_wrapped_callback(base_offset, p):
+                # Pass both global and file-local progress
+                return lambda current, total: progress_callback(p, base_offset + current, total_size, current, total) if progress_callback else None
 
             results[path] = self.search_use_case.execute(
                 path,
                 algorithm,
-                progress_callback=make_wrapped_callback(processed_size)
+                progress_callback=make_wrapped_callback(processed_size, path)
             )
             processed_size += file_size
 
         return results
 
     def get_algorithm_info(self, algorithm_key):
-        # Dummy algorithm instance to get info
         algo = self._get_algorithm(algorithm_key, ["dummy"], 2)
         return algo.name, algo.get_description()
 

@@ -49,6 +49,11 @@ classDiagram
         +run_search()
     }
 
+    class ProgressWindow {
+        +update_file_progress(path, current, total)
+        +update_overall_progress(current, total)
+    }
+
     SearchAlgorithm <|-- NaiveSearch
     SearchAlgorithm <|-- BoyerMooreSearch
     SearchAlgorithm <|-- KMPSearch
@@ -61,12 +66,14 @@ classDiagram
     SearchFilesUseCase --> SearchAlgorithm
     SearchController --> SearchFilesUseCase
     SearchApp --> SearchController
+    SearchApp --> ProgressWindow
 ```
 
 ## 3. シーケンス図 (Sequence Diagram) - 検索実行
 ```mermaid
 sequence_loop
     User->>SearchApp: 検索実行クリック
+    SearchApp->>ProgressWindow: 表示
     SearchApp->>SearchController: run_search(paths, patterns)
     SearchController->>SearchFilesUseCase: execute(path, algorithm)
     SearchFilesUseCase->>LocalFileRepository: get_size(path)
