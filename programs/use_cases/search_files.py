@@ -9,15 +9,19 @@ class SearchFilesUseCase:
     def __init__(self, file_repo: FileRepository):
         self.file_repo = file_repo
 
-    def execute(self, file_path: str, algorithm: SearchAlgorithm):
+    def execute(self, file_path: str, algorithm: SearchAlgorithm, progress_callback=None):
         size = self.file_repo.get_size(file_path)
         start = time.perf_counter()
 
         if size > self.LARGE_FILE_THRESHOLD:
-            result = self._search_stream(file_path, algorithm)
+            result = self._search_stream(file_path, algorithm, progress_callback=progress_callback)
         else:
+            if progress_callback:
+                progress_callback(0, size)
             text = self.file_repo.read_text(file_path)
             result = algorithm.search(text)
+            if progress_callback:
+                progress_callback(size, size)
 
         end = time.perf_counter()
 
@@ -27,11 +31,15 @@ class SearchFilesUseCase:
             "size": size
         }
 
-    def _search_stream(self, path, algorithm, chunk_size=1024*1024):
+    def _search_stream(self, path, algorithm, chunk_size=1024*1024, progress_callback=None):
+        size = self.file_repo.get_size(path)
         offset = 0
         counts = {}
         positions = {}
         distances = {}
+
+        if progress_callback:
+            progress_callback(0, size)
 
         for chunk in self.file_repo.read_chunks(path, chunk_size):
             r = algorithm.search_chunk(chunk, offset)
@@ -46,5 +54,7 @@ class SearchFilesUseCase:
                 distances[p].extend(dist)
 
             offset += len(chunk)
+            if progress_callback:
+                progress_callback(offset, size)
 
         return SearchResult(counts, positions, distances)
