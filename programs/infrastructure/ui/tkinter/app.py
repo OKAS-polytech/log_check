@@ -7,24 +7,31 @@ import threading
 
 from .result_window import ResultWindow
 from .progress_window import ProgressWindow
+from .splash import SplashScreen
 
 class SearchApp(TkinterDnD.Tk):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
+        self.withdraw()
+        self.splash = SplashScreen(self)
+
         self.file_paths = []
         self.search_entries = []
         self.algorithm = tk.StringVar(value="bm")
         self.title("String Search App (Refactored)")
-        self.geometry("900x750")
+        self.geometry("600x600")
         self.build()
-        self.after(0, self.run_benchmark)
+        self.after(500, self.run_benchmark)
 
     def run_benchmark(self):
         print("ベンチマーク中...（1〜2秒）")
         results = self.controller.run_benchmark()
         print("ベンチマーク完了:", results)
         self.update_estimate()
+
+        self.splash.destroy()
+        self.deiconify()
 
     def build(self):
         # File Drop Area
@@ -49,7 +56,7 @@ class SearchApp(TkinterDnD.Tk):
 
         self.algo_recommend_labels = {}
         algos = [
-            ("naive", "Naive（総当たり。マジで非推奨。勉強用。）"),
+            ("naive", "Naive（力まかせ）"),
             ("bm", "Boyer-Moore"),
             ("kmp", "KMP"),
             ("ac", "Aho–Corasick"),
@@ -79,7 +86,7 @@ class SearchApp(TkinterDnD.Tk):
 
         ttk.Button(word_frame_outer, text="検索ワードを CSV から読み込み", command=self.load_words_from_csv).pack(pady=5)
 
-        self.word_canvas = tk.Canvas(word_frame_outer, height=150)
+        self.word_canvas = tk.Canvas(word_frame_outer, height=100)
         self.word_canvas.pack(side="left", fill="both", expand=True)
         scrollbar = ttk.Scrollbar(word_frame_outer, orient="vertical", command=self.word_canvas.yview)
         scrollbar.pack(side="right", fill="y")
