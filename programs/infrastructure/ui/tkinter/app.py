@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, filedialog
 from tkinterdnd2 import TkinterDnD, DND_FILES
 import csv
 import os
+import threading
 
 from .result_window import ResultWindow
 
@@ -14,7 +15,7 @@ class SearchApp(TkinterDnD.Tk):
         self.search_entries = []
         self.algorithm = tk.StringVar(value="bm")
         self.title("String Search App (Refactored)")
-        self.geometry("900x700")
+        self.geometry("900x800")
         self.build()
         self.after(0, self.run_benchmark)
 
@@ -86,7 +87,16 @@ class SearchApp(TkinterDnD.Tk):
         self.add_entry()
 
         ttk.Button(self, text="検索ワード追加", command=self.add_entry).pack(pady=5)
-        ttk.Button(self, text="検索実行", command=self.run_search).pack(pady=10)
+
+        # Bottom controls
+        bottom_frame = ttk.Frame(self)
+        bottom_frame.pack(fill="x", side="bottom", padx=10, pady=10)
+
+        self.progress_bar = ttk.Progressbar(bottom_frame, orient="horizontal", length=100, mode="determinate")
+        # Hidden initially by not packing yet or packing with 0 height
+
+        self.search_button = ttk.Button(bottom_frame, text="検索実行", command=self.run_search)
+        self.search_button.pack(pady=5)
 
     def show_algorithm_info(self):
         algo_key = self.algorithm.get()
@@ -139,16 +149,44 @@ class SearchApp(TkinterDnD.Tk):
             messagebox.showerror("エラー", "検索ワードを入力してください")
             return
 
-        results = self.controller.run_search(
-            self.file_paths,
-            self.algorithm.get(),
-            patterns,
-            self.bitap_distance.get()
-        )
+        self.progress_bar.pack(fill="x", side="top", pady=5)
+        self.progress_bar["value"] = 0
+        self.search_button.config(state="disabled")
 
+        def task():
+            try:
+                results = self.controller.run_search(
+                    self.file_paths,
+                    self.algorithm.get(),
+                    patterns,
+                    self.bitap_distance.get(),
+                    progress_callback=self.update_progress
+                )
+                self.after(0, lambda: self.finish_search(results))
+            except Exception as e:
+                self.after(0, lambda: messagebox.showerror("エラー", f"検索中にエラーが発生しました: {e}"))
+                self.after(0, self.reset_ui)
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def update_progress(self, current, total):
+        progress = (current / total) * 100
+        self.after(0, lambda: self.progress_bar.configure(value=progress))
+
+    def finish_search(self, results):
+        self.reset_ui()
         ResultWindow(self, results)
 
+    def reset_ui(self):
+        self.progress_bar.pack_forget()
+        self.search_button.config(state="normal")
+
     def update_estimate(self, *args):
+        if not self.file_paths:
+            file_info = "0 件のファイルを選択中（計：0.00 MB）"
+            self.drop_label.config(text=f"{file_info} ファイル未選択")
+            return
+
         patterns = [e.get().strip() for e in self.search_entries if e.get().strip()]
         estimate = self.controller.estimate_time(
             self.file_paths,

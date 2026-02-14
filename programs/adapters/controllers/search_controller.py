@@ -29,11 +29,27 @@ class SearchController:
     def estimate_time(self, file_paths, algorithm_key, patterns, bitap_distance):
         return self.estimation_use_case.execute(file_paths, algorithm_key, patterns, self.benchmark_coeffs, bitap_distance)
 
-    def run_search(self, file_paths, algorithm_key, patterns, bitap_distance):
+    def run_search(self, file_paths, algorithm_key, patterns, bitap_distance, progress_callback=None):
         algorithm = self._get_algorithm(algorithm_key, patterns, bitap_distance)
         results = {}
+
+        # Calculate total size for progress reporting
+        total_size = sum(self.search_use_case.file_repo.get_size(path) for path in file_paths)
+        processed_size = 0
+
         for path in file_paths:
-            results[path] = self.search_use_case.execute(path, algorithm)
+            file_size = self.search_use_case.file_repo.get_size(path)
+
+            def make_wrapped_callback(base_offset):
+                return lambda current, total: progress_callback(base_offset + current, total_size) if progress_callback else None
+
+            results[path] = self.search_use_case.execute(
+                path,
+                algorithm,
+                progress_callback=make_wrapped_callback(processed_size)
+            )
+            processed_size += file_size
+
         return results
 
     def get_algorithm_info(self, algorithm_key):
